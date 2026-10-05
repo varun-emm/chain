@@ -1,0 +1,608 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><style>html{color-scheme:dark}body{margin:0;font:14px system-ui}img{max-width:100%}[hidden]{display:none!important}</style><meta name="description" content="An 8-bit open-world crime RPG where every person in town is played by AI. Plays in the browser."></head><body><title>Chain Chain Chain</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Open+Sans:wght@400;600&display=swap">
+<style>
+/* Layout: one screen. A thin marquee bar on top, the game fills everything under it.
+   Single committed look (the game's own title screen at dusk), so no light theme. */
+:root {
+  color-scheme: dark;
+  --night: #1b0d0e;       /* page ground: the sky above the stripes */
+  --adobe: #2a1614;       /* bar and panels */
+  --rail: #5a2f22;        /* borders */
+  --sand: #fff1c8;        /* text */
+  --dust: #c9a27a;        /* secondary text */
+  --ember: #f2a65a;       /* accent */
+  --go: #8fe08a;
+  --stop: #ff8a73;
+  --s1: #f2a65a; --s2: #e0763d; --s3: #b8452e; --s4: #7a2a2a; --s5: #3a1a22;  /* the sunset stripes */
+  --display: "Silkscreen", "Courier New", monospace;
+  --body: "Open Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html, body { height: 100%; }
+body {
+  background: var(--night); color: var(--sand); font: 14px/1.45 var(--body);
+  display: flex; flex-direction: column; gap: 10px;
+  padding-inline: 16px; padding-block: 10px; box-sizing: border-box; overflow: hidden;
+}
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.name { font: 700 17px/1 var(--display); letter-spacing: .04em; color: var(--sand); margin: 0; white-space: nowrap; }
+.build { font-size: 12px; color: var(--dust); font-variant-numeric: tabular-nums; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; align-items: center; }
+.chip { font-size: 12px; color: var(--dust); border: 1px solid var(--rail); padding: 3px 9px; white-space: nowrap; }
+.chip b { font-weight: 600; color: var(--sand); }
+.chip[data-tone="go"] b { color: var(--go); }
+.chip[data-tone="stop"] b { color: var(--stop); }
+button {
+  font: 600 12px/1 var(--body); color: var(--sand); background: var(--adobe);
+  border: 2px solid var(--rail); padding: 7px 11px; cursor: pointer;
+}
+@media (hover: hover) { button:hover { border-color: var(--ember); color: var(--ember); } }
+button:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+button[aria-expanded="true"] { border-color: var(--ember); }
+
+.aikey { border: 2px solid var(--rail); background: var(--adobe); padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: var(--dust); }
+.aikey p { margin: 0; max-width: 78ch; }
+.aikey a { color: var(--ember); }
+.keyrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.keyrow label { color: var(--sand); font-weight: 600; }
+.keyrow input { flex: 1 1 220px; min-width: 0; font: 13px/1.2 ui-monospace, Menlo, monospace; color: var(--sand); background: var(--night); border: 2px solid var(--rail); padding: 7px 9px; }
+.keyrow input:focus-visible { outline: 2px solid var(--ember); outline-offset: 1px; }
+.keynote[data-tone="go"] { color: var(--go); }
+.keynote[data-tone="stop"] { color: var(--stop); }
+.keys {
+  border: 2px solid var(--rail); background: var(--adobe); padding: 10px 14px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 4px 22px;
+  font-size: 12.5px; color: var(--dust); max-height: 40vh; overflow-y: auto;
+}
+.keys div { display: flex; gap: 8px; min-width: 0; }
+.keys kbd { font: 700 11px/1.5 var(--display); color: var(--ember); min-width: 74px; flex: none; }
+.keys p { grid-column: 1 / -1; margin: 6px 0 0; }
+
+.stage { position: relative; flex: 1 1 auto; min-height: 0; border: 2px solid var(--rail); background: #000; }
+#canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+.stage:fullscreen { border: 0; }
+
+.curtain {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 16px; text-align: center; background: var(--night);
+}
+.curtain h2 { font: 700 clamp(20px, 5vw, 40px)/1.05 var(--display); margin: 0; text-wrap: balance; letter-spacing: .03em; }
+.curtain .sub { color: var(--dust); margin: 0; max-width: 46ch; }
+/* the loading bar is the title screen's sunset: five stripes that fill from the left */
+.sunset { width: min(420px, 100%); border: 2px solid var(--rail); background: var(--adobe); }
+.sunset i { display: block; height: 7px; width: calc(var(--p, 0) * 1%); transition: width .2s linear; }
+.sunset i:nth-child(1) { background: var(--s1); } .sunset i:nth-child(2) { background: var(--s2); }
+.sunset i:nth-child(3) { background: var(--s3); } .sunset i:nth-child(4) { background: var(--s4); }
+.sunset i:nth-child(5) { background: var(--s5); }
+.pct { font: 400 12px/1 var(--display); color: var(--dust); font-variant-numeric: tabular-nums; }
+.oops { color: var(--stop); max-width: 60ch; margin: 0; }
+.log {
+  width: min(640px, 100%); max-height: 30vh; overflow: auto; text-align: left; margin: 0;
+  font: 11px/1.4 ui-monospace, Menlo, monospace; color: var(--dust); border: 1px solid var(--rail); padding: 8px; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) { .sunset i { transition: none; } }
+
+/* ---------- phones and tablets ----------
+   Upright: the game on top, a control deck under it (stick on the left, buttons on the right).
+   Sideways: the game fills the screen and the same controls float over it.
+   Every button is labelled with its keyboard key, because the game's own prompts say "[E]". */
+.turn { margin: 0; padding: 5px 10px; font-size: 12px; color: var(--night); background: var(--ember); text-align: center; }
+.talkbar { display: flex; gap: 6px; align-items: center; padding: 6px 8px; background: var(--adobe); border-top: 2px solid var(--rail); }
+.talkbar label { flex: none; font: 700 11px/1 var(--display); color: var(--ember); max-width: 26vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.talkbar input { flex: 1 1 auto; min-width: 0; font: 16px/1.2 var(--body); color: var(--sand); background: var(--night); border: 2px solid var(--rail); padding: 8px 9px; border-radius: 0; }
+.talkbar input:focus-visible { outline: 2px solid var(--ember); outline-offset: 0; }
+.talkbar button { min-height: 40px; }
+.deck {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 8px 12px;
+  padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--adobe);
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.deck button {
+  min-height: 46px; padding: 4px 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font: 700 13px/1 var(--display); touch-action: none; -webkit-tap-highlight-color: transparent;
+}
+.deck button small { font: 600 10px/1 var(--body); color: var(--dust); }
+.deck button.on { background: var(--s3); border-color: var(--ember); color: var(--sand); }
+.deck .sys { grid-column: 1 / -1; display: flex; gap: 5px; }
+.deck .sys button { flex: 1 1 0; min-width: 0; min-height: 40px; font-size: 12px; }
+.pad { justify-self: center; align-self: center; width: min(150px, 38vw); aspect-ratio: 1; border-radius: 50%; border: 2px solid var(--rail); background: var(--night); position: relative; touch-action: none; }
+.nub { position: absolute; left: 28%; top: 28%; width: 44%; height: 44%; border-radius: 50%; background: var(--ember); transform: translate(var(--x, 0px), var(--y, 0px)); pointer-events: none; }
+.acts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; align-content: center; }
+.acts .fire { grid-column: 1 / -1; min-height: 54px; font-size: 15px; }
+
+body.touch { padding: 0; gap: 0; padding-top: env(safe-area-inset-top, 0px); }
+body.touch .bar { padding: 5px 10px; gap: 6px 8px; }
+body.touch .name { font-size: 13px; }
+body.touch .name, body.touch .build, body.touch #chip-save, body.touch #btn-keys, body.touch #btn-full { display: none; }
+body.touch .chips { margin-left: 0; width: 100%; justify-content: space-between; }
+body.touch .aikey { border-width: 2px 0; }
+body.touch .stage { border-width: 2px 0; }
+body.touch #canvas { touch-action: none; }
+body.touch.land .bar, body.touch.land .aikey, body.touch.land .keys, body.touch.land .turn { display: none; }
+body.touch.land .stage { border: 0; }
+body.touch.land .deck {
+  position: fixed; inset: 0; z-index: 3; background: none; pointer-events: none;
+  grid-template-columns: auto 1fr auto; grid-template-rows: auto 1fr auto;
+  padding: 6px calc(12px + env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px));
+}
+body.touch.land .deck > * { pointer-events: auto; opacity: .62; }
+body.touch.land .deck .sys { grid-column: 2; grid-row: 1; justify-self: center; width: min(430px, 100%); }
+body.touch.land .pad { grid-column: 1; grid-row: 3; width: 128px; }
+body.touch.land .acts { grid-column: 3; grid-row: 3; width: 210px; }
+body.touch.land .talkbar { position: fixed; top: 0; left: 0; right: 0; z-index: 4; border-top: 0; border-bottom: 2px solid var(--rail); }
+html, body { overscroll-behavior: none; }
+</style>
+
+<header class="bar">
+  <h1 class="name">CHAIN CHAIN CHAIN</h1>
+  <span class="build" id="build">Build 15.4 · 3 Oct 2026 · Los Devlas + Lina Cruz</span>
+  <div class="chips">
+    <span class="chip" id="chip-ai">People <b>checking…</b></span>
+    <span class="chip" id="chip-save">Save <b>checking…</b></span>
+    <button type="button" id="btn-ai" aria-expanded="false" aria-controls="aikey" hidden>AI key</button>
+    <button type="button" id="btn-keys" aria-expanded="false" aria-controls="keys">Controls</button>
+    <button type="button" id="btn-full">Fullscreen</button>
+  </div>
+</header>
+
+<section class="aikey" id="aikey" hidden>
+  <p>With a key, an AI model plays every person in town. Groq keys are free: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">get one at console.groq.com/keys</a>, copy it, and paste it here. Gemini, OpenRouter and OpenAI keys work too.</p>
+  <form id="key-form" class="keyrow">
+    <label for="key-in">Your key</label>
+    <input id="key-in" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_…">
+    <button type="submit" id="key-use">Use this key</button>
+    <button type="button" id="key-forget">Forget my key</button>
+  </form>
+  <p class="keynote" id="key-note">The key is stored only in this browser and is sent only to the AI provider.</p>
+</section>
+
+<section class="keys" id="keys" hidden>
+  <div><kbd>WASD</kbd> move (Shift: sprint)</div>
+  <div><kbd>T</kbd> talk, then type anything</div>
+  <div><kbd>E</kbd> use, inspect, pick up</div>
+  <div><kbd>F</kbd> in or out of a car or bike</div>
+  <div><kbd>SPACE</kbd> attack or shoot</div>
+  <div><kbd>Q</kbd> switch weapon</div>
+  <div><kbd>Z</kbd> Dead Eye, or Rafael's Ghost</div>
+  <div><kbd>C</kbd> switch character</div>
+  <div><kbd>P</kbd> phone</div>
+  <div><kbd>M</kbd> map</div>
+  <div><kbd>J</kbd> journal</div>
+  <div><kbd>ESC</kbd> pause and save</div>
+  <p>Click the game first so it hears the keyboard. In fullscreen, Esc leaves fullscreen before it pauses. F1 inside the game lists every control.</p>
+</section>
+
+<main class="stage" id="stage">
+  <canvas id="canvas" tabindex="0" aria-label="Chain Chain Chain, the game"></canvas>
+  <div class="curtain" id="curtain">
+    <h2>CHAIN CHAIN CHAIN</h2>
+    <p class="sub" id="sub">Loading Coyote Bend, Redrock Junction, Waitingham and Los Devlas.</p>
+    <div class="sunset" id="sunset" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i><i></i><i></i><i></i><i></i></div>
+    <span class="pct" id="pct">0%</span>
+    <p class="oops" id="oops" hidden></p>
+    <pre class="log" id="log" hidden></pre>
+  </div>
+</main>
+
+<p class="turn" id="turn" hidden>This screen is drawn wide. Turn your phone sideways to read it comfortably.</p>
+
+<form class="talkbar" id="talkbar" hidden>
+  <label for="say" id="say-who">Say</label>
+  <input id="say" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="send" maxlength="240" placeholder="Type what you say">
+  <button type="submit" id="say-send">Send</button>
+  <button type="button" id="say-leave">Leave</button>
+</form>
+
+<section class="deck" id="deck" hidden aria-label="Touch controls">
+  <div class="sys">
+    <button type="button" data-code="KeyP" data-key="p">P<small>Phone</small></button>
+    <button type="button" data-code="KeyM" data-key="m">M<small>Map</small></button>
+    <button type="button" data-code="KeyJ" data-key="j">J<small>Notes</small></button>
+    <button type="button" data-code="KeyC" data-key="c">C<small>Switch</small></button>
+    <button type="button" data-code="Minus" data-key="-">&minus;<small>Zoom</small></button>
+    <button type="button" data-code="Equal" data-key="=">+<small>Zoom</small></button>
+    <button type="button" data-code="Escape" data-key="Escape">ESC<small>Pause</small></button>
+  </div>
+  <div class="pad" id="pad" role="application" aria-label="Move"><div class="nub" id="nub"></div></div>
+  <div class="acts">
+    <button type="button" data-code="KeyQ" data-key="q">Q<small>Weapon</small></button>
+    <button type="button" data-code="KeyZ" data-key="z">Z<small>Power</small></button>
+    <button type="button" data-code="ShiftLeft" data-key="Shift" data-latch="1">SHIFT<small>Run</small></button>
+    <button type="button" data-code="KeyT" data-key="t" id="act-talk">T<small>Talk</small></button>
+    <button type="button" data-code="KeyE" data-key="e">E<small>Use</small></button>
+    <button type="button" data-code="KeyF" data-key="f">F<small>Ride</small></button>
+    <button type="button" class="fire" data-code="Space" data-key=" ">SPACE<small>Hit / shoot / brake</small></button>
+  </div>
+</section>
+
+<script>
+/* ---------- the bridge the game talks to (scripts/web.gd) ---------- */
+(function () {
+  const BUILD_ID = "build-15-2026-10-03b";
+  const CHUNK = 60000;   // characters per stored part: stays under the 256 KiB limit even if every one is 3 bytes
+  const el = (id) => document.getElementById(id);
+  const chip = (id, label, text, tone) => {
+    const c = el(id); if (!c) return;
+    c.textContent = label + " ";
+    const b = document.createElement("b"); b.textContent = text; c.append(b);
+    if (tone) c.dataset.tone = tone; else delete c.dataset.tone;
+  };
+  const lines = [];
+  const log = (s) => { lines.push(String(s)); if (lines.length > 200) lines.shift(); const l = el("log"); if (l && !l.hidden) l.textContent = lines.join("\n"); };
+
+  // "claude": opened inside Claude, where Claude can play the people and the page may not call
+  // other sites. "open": any ordinary website, where the player brings their own AI key.
+  const host = (window.claude && typeof window.claude.use === "function") ? "claude" : "open";
+  let pendingKey = "";
+  // A phone or tablet: a finger is the main pointer. "#touch" in the address forces it (testing).
+  const TOUCH = /(^|[#&])touch\b/.test(location.hash) || (!!window.matchMedia && matchMedia("(pointer: coarse)").matches && (navigator.maxTouchPoints || 0) > 0);
+  // Which way the device is held. Asked of the screen, not the window: an open keyboard makes
+  // the window short and wide without the phone having been turned.
+  const isPortrait = () => {
+    try { if (screen.orientation && screen.orientation.type) return screen.orientation.type.indexOf("portrait") === 0; } catch (e) { /* older browsers */ }
+    if (typeof window.orientation === "number") return window.orientation === 0 || window.orientation === 180;
+    return !!window.matchMedia && matchMedia("(orientation: portrait)").matches;
+  };
+  let pendingText = "";
+  const hooks = { talk: null, near: null, wide: null };
+  let sample = null, aiState = "pending";
+  const jobs = new Map(); let nextId = 1;
+  const cloud = { state: "pending", text: "", savedAt: 0, base: null, slot: "a", busy: false, queued: null };
+
+  const clock = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+
+  async function pump() {
+    if (cloud.busy || !cloud.queued || !cloud.base) return;
+    cloud.busy = true;
+    const job = cloud.queued; cloud.queued = null;
+    try {
+      const slot = cloud.slot === "a" ? "b" : "a";
+      const n = Math.max(1, Math.ceil(job.text.length / CHUNK));
+      for (let i = 0; i < n; i++) {
+        await cloud.base.doc("save_" + slot + "_" + i).set({ t: job.text.slice(i * CHUNK, (i + 1) * CHUNK) });
+      }
+      await cloud.base.doc("save_meta").set({ slot: slot, chunks: n, savedAt: job.savedAt, build: BUILD_ID, chars: job.text.length });
+      cloud.slot = slot; cloud.savedAt = job.savedAt; cloud.text = job.text;
+      chip("chip-save", "Save", "kept with your account, " + clock(), "go");
+    } catch (e) {
+      log("cloud save failed: " + ((e && e.code) || e));
+      chip("chip-save", "Save", "this browser only", "stop");
+    }
+    cloud.busy = false;
+    if (cloud.queued) pump();
+  }
+
+  async function initCloud(C) {
+    try {
+      const both = await Promise.all([C.use("db"), C.use("user")]);
+      const db = both[0], user = both[1];
+      const uid = db && user ? await user.id() : null;
+      if (!uid) throw { code: "no_account" };
+      cloud.base = db.collection("data/users/" + uid);
+      const meta = await cloud.base.doc("save_meta").get();
+      if (meta.exists) {
+        const m = meta.data();
+        const parts = [];
+        for (let i = 0; i < Number(m.chunks || 0); i++) {
+          const s = await cloud.base.doc("save_" + m.slot + "_" + i).get();
+          if (!s.exists) throw { code: "missing_part" };
+          parts.push(String(s.data().t || ""));
+        }
+        const text = parts.join("");
+        JSON.parse(text);
+        cloud.text = text; cloud.savedAt = Number(m.savedAt || 0); cloud.slot = m.slot === "b" ? "b" : "a";
+      }
+      cloud.state = "ready";
+      chip("chip-save", "Save", cloud.savedAt ? "kept with your account" : "ready", "go");
+      pump();
+    } catch (e) {
+      log("cloud save unavailable: " + ((e && e.code) || e));
+      cloud.state = "none";
+      chip("chip-save", "Save", "this browser only");
+    }
+  }
+
+  async function initAi(C) {
+    try { sample = await C.use("sample"); } catch (e) { sample = null; }
+    aiState = sample ? "ready" : "none";
+    if (!sample) chip("chip-ai", "People", "scripted replies");
+  }
+
+  window.CCC = {
+    aiState: () => aiState,
+    ask: (turnsJson, tier) => {
+      const id = nextId++;
+      const job = { state: "pending", text: "", code: "", ctl: new AbortController() };
+      jobs.set(id, job);
+      let turns = null;
+      try { turns = JSON.parse(turnsJson); } catch (e) { /* handled below */ }
+      if (!sample || !Array.isArray(turns) || !turns.length) { job.state = "error"; job.code = sample ? "bad_input" : "no_bridge"; return id; }
+      chip("chip-ai", "People", "Claude is thinking…", "go");
+      sample(turns, {
+        modelTier: tier === "default" ? "default" : "quick", cache: false, signal: job.ctl.signal,
+        onText: (u) => { job.text = u.text; },
+      }).then((r) => {
+        job.text = r.text; job.state = "done";
+        chip("chip-ai", "People", "played by Claude", "go");
+      }, (e) => {
+        job.code = (e && e.code) || "upstream_error";
+        if (e && typeof e.text === "string") job.text = e.text;
+        job.state = "error";
+        log("Claude: " + job.code + " " + ((e && e.message) || ""));
+        const off = ["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"].indexOf(job.code) >= 0;
+        chip("chip-ai", "People", off ? "scripted replies" : (job.code === "rate_limited" ? "Claude is busy, scripted for a minute" : "played by Claude"), off ? "" : "go");
+      });
+      return id;
+    },
+    poll: (id) => {
+      const j = jobs.get(id);
+      if (!j) return '{"state":"error","code":"gone","text":""}';
+      const out = JSON.stringify({ state: j.state, text: j.text, code: j.code });
+      if (j.state !== "pending") jobs.delete(id);
+      return out;
+    },
+    cancel: (id) => { const j = jobs.get(id); if (j) { try { j.ctl.abort(); } catch (e) { /* already settled */ } } },
+    cloudState: () => cloud.state,
+    cloudSavedAt: () => cloud.savedAt,
+    cloudText: () => cloud.text,
+    cloudSave: (text, savedAt) => {
+      cloud.queued = { text: String(text), savedAt: Number(savedAt) || 0 };
+      if (cloud.state === "none") chip("chip-save", "Save", "this browser only, " + clock());
+      pump();
+    },
+    touch: () => TOUCH,
+    portrait: () => isPortrait(),
+    takeText: () => { const t = pendingText; pendingText = ""; return t; },
+    _say: (t) => { pendingText = String(t); },
+    _hooks: hooks,
+    note: (key, text, tone) => {
+      if (hooks[key]) { hooks[key](text, tone); return; }
+      if (key === "ai") chip("chip-ai", "People", text, tone || "");
+      if (key === "key") { const n = el("key-note"); n.textContent = text; if (tone) n.dataset.tone = tone; else delete n.dataset.tone; }
+    },
+    host: () => host,
+    takeKey: () => { const k = pendingKey; pendingKey = ""; return k; },
+    log: log,
+  };
+
+  if (host === "open") {
+    el("btn-ai").hidden = false;
+    el("btn-ai").addEventListener("click", () => {
+      const k = el("aikey"); k.hidden = !k.hidden;
+      el("btn-ai").setAttribute("aria-expanded", String(!k.hidden));
+      if (!k.hidden) el("key-in").focus();
+      window.dispatchEvent(new Event("resize"));
+    });
+    el("key-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const k = el("key-in").value.replace(/\s+/g, "");
+      if (k.length < 12) { window.CCC.note("key", "That doesn't look like a key. It is a long string, usually starting with gsk_.", "stop"); return; }
+      pendingKey = k; el("key-in").value = "";
+      window.CCC.note("key", "Testing your key…");
+    });
+    el("key-forget").addEventListener("click", () => { pendingKey = "FORGET"; window.CCC.note("key", "Forgetting the key…"); });
+  }
+
+  const C = window.claude;
+  if (C && typeof C.use === "function") { initAi(C); initCloud(C); }
+  else { aiState = "none"; cloud.state = "none"; chip("chip-ai", "People", "scripted replies"); chip("chip-save", "Save", "this browser only"); }
+})();
+</script>
+<script src="index.js"></script>
+<script>
+/* ---------- boot the engine ---------- */
+(function () {
+  const el = (id) => document.getElementById(id);
+  const canvas = el("canvas"), stage = el("stage"), curtain = el("curtain");
+  const WASM_SIZE = 38034280, PCK_SIZE = 2002724;
+
+  // The engine is published gzipped (engine.wasm) and the game data as base64 text (game.txt),
+  // because the host serves only web file types. Hand the engine the real thing.
+  const realFetch = window.fetch.bind(window);
+  async function inflated(res) {
+    if (typeof DecompressionStream === "function" && res.body) {
+      return new Response(res.body.pipeThrough(new DecompressionStream("gzip")), { status: 200, headers: { "Content-Type": "application/wasm" } });
+    }
+    await new Promise((ok, no) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"; s.onload = ok; s.onerror = () => no(new Error("could not load the unzip helper")); document.head.append(s); });
+    const raw = window.pako.ungzip(new Uint8Array(await res.arrayBuffer()));
+    return new Response(raw, { status: 200, headers: { "Content-Type": "application/wasm" } });
+  }
+  window.fetch = function (input, init) {
+    const url = typeof input === "string" ? input : (input && input.url) || "";
+    if (/(^|\/)index\.wasm(\?|$)/.test(url)) {
+      return realFetch("engine.wasm").then((res) => { if (!res.ok) throw new Error("engine.wasm: HTTP " + res.status); return inflated(res); });
+    }
+    if (/(^|\/)game\.pck(\?|$)/.test(url)) {
+      return realFetch("game.txt").then((res) => { if (!res.ok) throw new Error("game.txt: HTTP " + res.status); return res.text(); }).then((b64) => {
+        const bin = atob(b64.trim()); const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new Response(bytes, { status: 200, headers: { "Content-Type": "application/octet-stream" } });
+      });
+    }
+    return realFetch(input, init);
+  };
+
+  function fail(msg, err) {
+    const detail = err ? String((err && err.message) || err) : "";
+    window.CCC.log("FAILED: " + msg + " " + detail);
+    el("sunset").hidden = true; el("pct").hidden = true;
+    el("sub").textContent = "The game could not start.";
+    const o = el("oops"); o.hidden = false; o.textContent = msg + (detail ? " (" + detail + ")" : "");
+    const l = el("log"); l.hidden = false; window.CCC.log("");
+    curtain.hidden = false;
+  }
+
+  // The page owns the canvas size; the engine follows it.
+  function fit() {
+    const cw = canvas.clientWidth, ch = canvas.clientHeight;
+    if (cw < 2 || ch < 2) return;
+    const scale = Math.max(1, Math.min(window.devicePixelRatio || 1, 2, 1920 / cw));
+    const w = Math.round(cw * scale), h = Math.round(ch * scale);
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  }
+  try { new ResizeObserver(fit).observe(stage); } catch (e) { window.addEventListener("resize", fit); }
+  fit();
+  stage.addEventListener("pointerdown", () => canvas.focus());
+
+  el("btn-full").addEventListener("click", () => {
+    const p = document.fullscreenElement ? document.exitFullscreen() : (stage.requestFullscreen ? stage.requestFullscreen() : Promise.reject(new Error("unsupported")));
+    Promise.resolve(p).then(() => canvas.focus(), () => { el("btn-full").textContent = "Fullscreen isn't available here"; });
+  });
+  el("btn-keys").addEventListener("click", () => {
+    const k = el("keys"); k.hidden = !k.hidden;
+    el("btn-keys").setAttribute("aria-expanded", String(!k.hidden));
+    fit();
+  });
+
+  /* ---------- phones and tablets: on-screen controls ---------- */
+  const TOUCH = window.CCC.touch();
+  let gameUp = false;
+  if (TOUCH) {
+    document.body.classList.add("touch");
+    const deck = el("deck"), talkbar = el("talkbar"), say = el("say"), pad = el("pad"), nub = el("nub");
+    const hooks = window.CCC._hooks;
+    const held = new Set();
+    // The buttons send the same key presses a keyboard would, straight to the game.
+    function key(code, k, isDown) {
+      if (isDown === held.has(code)) return;
+      if (isDown) held.add(code); else held.delete(code);
+      canvas.dispatchEvent(new KeyboardEvent(isDown ? "keydown" : "keyup", { code: code, key: k, bubbles: true, cancelable: true, shiftKey: held.has("ShiftLeft") }));
+    }
+    function releaseAll() {
+      Array.from(held).forEach((code) => { if (code !== "ShiftLeft") key(code, "", false); });
+      deck.querySelectorAll("button.on:not([data-latch])").forEach((b) => b.classList.remove("on"));
+      nub.style.setProperty("--x", "0px"); nub.style.setProperty("--y", "0px");
+    }
+
+    let nearTalk = "", talking = false, talkWanted = 0;
+    deck.querySelectorAll("button[data-code]").forEach((b) => {
+      const code = b.dataset.code, k = b.dataset.key, latch = !!b.dataset.latch;
+      const release = () => { if (latch) return; b.classList.remove("on"); key(code, k, false); };
+      b.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        if (latch) { const on = !held.has(code); key(code, k, on); b.classList.toggle("on", on); return; }
+        b.classList.add("on"); key(code, k, true);
+        if (b.id === "act-talk") {
+          setTimeout(release, 120);
+          // someone is in range: raise the keyboard now, while this is still the player's own tap
+          if (nearTalk) { talkWanted = Date.now(); showTalk(nearTalk, true); }
+        }
+      });
+      ["pointerup", "pointercancel", "pointerleave"].forEach((t) => b.addEventListener(t, release));
+      b.addEventListener("contextmenu", (e) => e.preventDefault());
+    });
+
+    // The stick: eight directions, sent as W A S D.
+    let padId = null;
+    function stick(e) {
+      const r = pad.getBoundingClientRect(), R = r.width / 2;
+      let x = (e.clientX - (r.left + R)) / R, y = (e.clientY - (r.top + R)) / R;
+      const m = Math.hypot(x, y);
+      if (m > 1) { x /= m; y /= m; }
+      nub.style.setProperty("--x", (x * R * 0.56) + "px"); nub.style.setProperty("--y", (y * R * 0.56) + "px");
+      const a = Math.atan2(y, x) * 180 / Math.PI, on = m >= 0.3;
+      key("KeyD", "d", on && Math.abs(a) < 67.5);
+      key("KeyA", "a", on && Math.abs(a) > 112.5);
+      key("KeyS", "s", on && a > 22.5 && a < 157.5);
+      key("KeyW", "w", on && a < -22.5 && a > -157.5);
+    }
+    function unstick() {
+      padId = null;
+      nub.style.setProperty("--x", "0px"); nub.style.setProperty("--y", "0px");
+      [["KeyD", "d"], ["KeyA", "a"], ["KeyS", "s"], ["KeyW", "w"]].forEach((d) => key(d[0], d[1], false));
+    }
+    pad.addEventListener("pointerdown", (e) => { e.preventDefault(); padId = e.pointerId; try { pad.setPointerCapture(e.pointerId); } catch (x) { /* fine */ } stick(e); });
+    pad.addEventListener("pointermove", (e) => { if (e.pointerId === padId) stick(e); });
+    ["pointerup", "pointercancel"].forEach((t) => pad.addEventListener(t, (e) => { if (e.pointerId === padId) unstick(); }));
+
+    // The page is as tall as what is actually visible, so an open keyboard pushes the game up
+    // instead of covering it. Sideways, the keyboard is left to cover the bottom half.
+    const vv = window.visualViewport;
+    let fullH = 0;
+    function sizePage() {
+      const h = vv ? vv.height : window.innerHeight;
+      const typing = document.activeElement === say || document.activeElement === el("key-in");
+      if (!typing) fullH = h;
+      const portrait = window.CCC.portrait();
+      document.body.classList.toggle("land", !portrait);
+      const use = (portrait || !typing) ? h : Math.max(h, fullH);
+      document.documentElement.style.height = use + "px"; document.body.style.height = use + "px";
+      if (window.scrollY || (vv && vv.offsetTop)) window.scrollTo(0, 0);
+      deck.hidden = !gameUp || (portrait && !talkbar.hidden);
+      fit();
+    }
+    window.CCC._sizePage = sizePage;
+    if (vv) { vv.addEventListener("resize", sizePage); vv.addEventListener("scroll", sizePage); }
+    window.addEventListener("resize", sizePage);
+    window.addEventListener("orientationchange", () => setTimeout(sizePage, 250));
+    say.addEventListener("focus", () => setTimeout(sizePage, 300));
+    say.addEventListener("blur", () => setTimeout(sizePage, 300));
+
+    function showTalk(who, focus) {
+      el("say-who").textContent = who || "Say";
+      talkbar.hidden = false;
+      releaseAll();
+      if (focus) { try { say.focus({ preventScroll: true }); } catch (x) { say.focus(); } }
+      sizePage();
+    }
+    function hideTalk() {
+      talking = false; talkbar.hidden = true; say.value = ""; say.blur();
+      el("say-send").disabled = false; say.placeholder = "Type what you say";
+      sizePage();
+    }
+    hooks.talk = (state, who) => {
+      if (state === "open") { talking = true; showTalk(who, false); }
+      else if (state === "close") hideTalk();
+      else if (state === "wait") { el("say-send").disabled = true; say.placeholder = (who || "They") + " is thinking…"; }
+      else if (state === "ready") { el("say-send").disabled = false; say.placeholder = "Type what you say"; }
+    };
+    hooks.near = (who) => { nearTalk = who || ""; };
+    hooks.wide = (on) => { el("turn").hidden = !on; sizePage(); };
+    talkbar.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const t = say.value.trim();
+      if (!t || el("say-send").disabled) return;
+      window.CCC._say(t); say.value = "";
+    });
+    el("say-leave").addEventListener("click", () => { key("Escape", "Escape", true); key("Escape", "Escape", false); });
+    // TALK was pressed but no conversation started (they walked off): put the keyboard away.
+    setInterval(() => { if (!talking && !talkbar.hidden && Date.now() - talkWanted > 1500) hideTalk(); }, 400);
+    sizePage();
+  }
+
+  let started = false;
+  function start() {
+    if (started) return; started = true;
+    if (typeof Engine !== "function") { fail("The game engine file did not load."); return; }
+    const missing = Engine.getMissingFeatures({ threads: false });
+    if (missing.length) { fail("This browser is missing something the game needs: " + missing.join(", ") + ". A current Chrome, Edge, Firefox or Safari works."); return; }
+    const engine = new Engine({
+      args: Array.isArray(window.CCC_ARGS) ? window.CCC_ARGS : [], canvas: canvas, canvasResizePolicy: 0, executable: "index", mainPack: "game.pck",
+      experimentalVK: false, focusCanvas: true, gdextensionLibs: [], ensureCrossOriginIsolationHeaders: false,
+      fileSizes: { "game.pck": PCK_SIZE, "index.wasm": WASM_SIZE },
+      onPrint: function () { const s = Array.prototype.join.call(arguments, " "); console.log(s); window.CCC.log(s); },
+      onPrintError: function () { const s = Array.prototype.join.call(arguments, " "); console.warn(s); window.CCC.log("! " + s); },
+      onProgress: function (now, total) {
+        const all = total > 0 ? total : WASM_SIZE + PCK_SIZE;
+        const p = Math.max(0, Math.min(100, Math.round(now / all * 100)));
+        el("sunset").style.setProperty("--p", p); el("sunset").setAttribute("aria-valuenow", String(p));
+        el("pct").textContent = p + "%";
+        if (p >= 100) el("sub").textContent = "Starting…";
+      },
+    });
+    engine.startGame().then(() => {
+      curtain.hidden = true; gameUp = true;
+      if (window.CCC._sizePage) window.CCC._sizePage();
+      fit(); canvas.focus();
+    }, (err) => fail("Something went wrong while loading.", err));
+  }
+  window.addEventListener("error", (e) => window.CCC.log("page error: " + e.message));
+  window.addEventListener("unhandledrejection", (e) => { window.CCC.log("page error: " + ((e.reason && e.reason.message) || e.reason)); if (!curtain.hidden) fail("Something went wrong while loading.", e.reason); });
+
+  // An update published while someone is playing reloads the page at a quiet moment.
+  const hot = window.claude && window.claude.hot;
+  try { if (hot && typeof hot.snapshot === "function") hot.snapshot(() => ({})); } catch (e) { /* optional */ }
+  try { if (hot && typeof hot.ready === "function") hot.ready(start); else start(); } catch (e) { start(); }
+  setTimeout(start, 1500);
+})();
+</script>
+</body></html>
