@@ -73,6 +73,7 @@ button[aria-expanded="true"] { border-color: var(--ember); }
 .sunset i:nth-child(1) { background: var(--s1); } .sunset i:nth-child(2) { background: var(--s2); }
 .sunset i:nth-child(3) { background: var(--s3); } .sunset i:nth-child(4) { background: var(--s4); }
 .sunset i:nth-child(5) { background: var(--s5); }
+.sunset.full i { width: 100%; transition: none; }
 .pct { font: 400 12px/1 var(--display); color: var(--dust); font-variant-numeric: tabular-nums; }
 .oops { color: var(--stop); max-width: 60ch; margin: 0; }
 .log {
@@ -138,7 +139,7 @@ html, body { overscroll-behavior: none; }
 
 <header class="bar">
   <h1 class="name">CHAIN CHAIN CHAIN</h1>
-  <span class="build" id="build">Build 15.7 · 12 Oct 2026 · Trainer, drive like you walk</span>
+  <span class="build" id="build">Build 16 · 12 Oct 2026 · Lights, weather, feel</span>
   <div class="chips">
     <span class="chip" id="chip-ai">People <b>checking…</b></span>
     <span class="chip" id="chip-save">Save <b>checking…</b></span>
@@ -221,7 +222,7 @@ html, body { overscroll-behavior: none; }
 <script>
 /* ---------- the bridge the game talks to (scripts/web.gd) ---------- */
 (function () {
-  const BUILD_ID = "build-15.7-2026-10-12";
+  const BUILD_ID = "build-16-2026-10-12";
   const CHUNK = 60000;   // characters per stored part: stays under the 256 KiB limit even if every one is 3 bytes
   const el = (id) => document.getElementById(id);
   const chip = (id, label, text, tone) => {
@@ -398,7 +399,7 @@ html, body { overscroll-behavior: none; }
 (function () {
   const el = (id) => document.getElementById(id);
   const canvas = el("canvas"), stage = el("stage"), curtain = el("curtain");
-  const WASM_SIZE = 38034280, PCK_SIZE = 2095300;
+  const WASM_SIZE = 38034280, PCK_SIZE = 2177540;
 
   // The engine is published gzipped (engine.wasm) and the game data as base64 text (game.txt),
   // because the host serves only web file types. Hand the engine the real thing.
@@ -631,7 +632,11 @@ html, body { overscroll-behavior: none; }
         const p = Math.max(0, Math.min(100, Math.round(now / all * 100)));
         el("sunset").style.setProperty("--p", p); el("sunset").setAttribute("aria-valuenow", String(p));
         el("pct").textContent = p + "%";
-        if (p >= 100) el("sub").textContent = "Starting…";
+        if (p >= 100) {
+          // the engine starts up on this same thread, so the bar's animation would freeze half way: jump to full
+          el("sunset").classList.add("full");
+          el("sub").textContent = "Starting… (a few seconds on a phone)";
+        }
       },
     });
     engine.startGame().then(() => {
