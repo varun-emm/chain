@@ -139,7 +139,7 @@ html, body { overscroll-behavior: none; }
 
 <header class="bar">
   <h1 class="name">CHAIN CHAIN CHAIN</h1>
-  <span class="build" id="build">Build 16.1 · 12 Oct 2026 · Walk-in missions, one-character title</span>
+  <span class="build" id="build"> · 12 Oct 2026 · Kingman collectors wait for Mission 6, gentle bumps</span>
   <div class="chips">
     <span class="chip" id="chip-ai">People <b>checking…</b></span>
     <span class="chip" id="chip-save">Save <b>checking…</b></span>
@@ -222,7 +222,7 @@ html, body { overscroll-behavior: none; }
 <script>
 /* ---------- the bridge the game talks to (scripts/web.gd) ---------- */
 (function () {
-  const BUILD_ID = "build-16.1-2026-10-12";
+  const BUILD_ID = "build-16.2-2026-10-12";
   const CHUNK = 60000;   // characters per stored part: stays under the 256 KiB limit even if every one is 3 bytes
   const el = (id) => document.getElementById(id);
   const chip = (id, label, text, tone) => {
@@ -399,7 +399,7 @@ html, body { overscroll-behavior: none; }
 (function () {
   const el = (id) => document.getElementById(id);
   const canvas = el("canvas"), stage = el("stage"), curtain = el("curtain");
-  const WASM_SIZE = 38034280, PCK_SIZE = 2193908;
+  const WASM_SIZE = 38034280, PCK_SIZE = 2198532;
 
   // The engine is published gzipped (engine.wasm) and the game data as base64 text (game.txt),
   // because the host serves only web file types. Hand the engine the real thing.
